@@ -3,11 +3,51 @@ const chatForm = document.getElementById("chatForm");
 const userInput = document.getElementById("userInput");
 const chatWindow = document.getElementById("chatWindow");
 
+// Cloudflare dashboard page to create API tokens (setup helper link).
+const CLOUDFLARE_TOKEN_URL =
+  "https://dash.cloudflare.com/a57c439a8b87127d7dc4c4d92653382e/api-tokens/create";
+
 /*
   API setting:
   - Set API_URL to your deployed Cloudflare Worker endpoint URL.
 */
-const API_URL = window.API_URL || "";
+let configuredApiUrl = "/api";
+
+if (typeof window.API_URL === "string" && window.API_URL.trim()) {
+  configuredApiUrl = window.API_URL.trim();
+} else if (typeof API_URL === "string" && API_URL.trim()) {
+  // Also support a plain global "const API_URL = ..." in secrets.js.
+  configuredApiUrl = API_URL.trim();
+}
+
+function validateApiUrl(url) {
+  if (!url) {
+    throw new Error(
+      `Missing API_URL. Add your Cloudflare Worker URL in secrets.js. You can create tokens here if needed: ${CLOUDFLARE_TOKEN_URL}`,
+    );
+  }
+
+  // The dashboard URL is for setup only. The app must call your deployed Worker endpoint.
+  if (url.includes("dash.cloudflare.com")) {
+    throw new Error(
+      "API_URL is set to a Cloudflare dashboard page. Use your deployed Worker URL instead, like: https://your-worker-name.your-subdomain.workers.dev",
+    );
+  }
+}
+
+function parseJsonSafely(text) {
+  if (!text || !text.trim()) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {
+      error: "The server returned a non-JSON response.",
+    };
+  }
+}
 
 // This system message keeps the chatbot focused on L'Oreal help only.
 const systemMessage = {
@@ -49,9 +89,7 @@ chatForm.addEventListener("submit", async (e) => {
   const thinkingElement = appendMessage("ai", "Thinking...");
 
   try {
-    if (!API_URL) {
-      throw new Error("Missing API_URL. Set your Cloudflare Worker URL first.");
-    }
+    validateApiUrl(configuredApiUrl);
 
     const memoryMessage = {
       role: "system",
@@ -61,7 +99,7 @@ chatForm.addEventListener("submit", async (e) => {
     // Keep the original system message first, then memory context, then chat history.
     const requestMessages = [messages[0], memoryMessage, ...messages.slice(1)];
 
-    const response = await fetch(API_URL, {
+    const response = await fetch(configuredApiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -73,11 +111,15 @@ chatForm.addEventListener("submit", async (e) => {
       }),
     });
 
+    const rawResponseText = await response.text();
+    const data = parseJsonSafely(rawResponseText);
+
     if (!response.ok) {
-      throw new Error(`Request failed with status ${response.status}`);
+      const apiErrorMessage =
+        data?.error || `Request failed with status ${response.status}`;
+      throw new Error(apiErrorMessage);
     }
 
-    const data = await response.json();
     const assistantReply = data.choices?.[0]?.message?.content;
 
     if (!assistantReply) {
@@ -88,11 +130,18 @@ chatForm.addEventListener("submit", async (e) => {
     thinkingElement.remove();
     appendMessage("ai", assistantReply);
   } catch (error) {
+    const isNetworkError =
+      error?.name === "TypeError" &&
+      String(error?.message || "")
+        .toLowerCase()
+        .includes("failed to fetch");
+
+    const finalMessage = isNetworkError
+      ? "Network error while calling /api. Check Cloudflare deployment and internet connection."
+      : error.message;
+
     thinkingElement.remove();
-    appendMessage(
-      "ai",
-      `Sorry, I couldn't connect right now. ${error.message}`,
-    );
+    appendMessage("ai", `Sorry, I couldn't connect right now. ${finalMessage}`);
   }
 });
 

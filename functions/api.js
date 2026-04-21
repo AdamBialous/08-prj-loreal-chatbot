@@ -58,7 +58,7 @@ export async function onRequest(context) {
     const requestBody = {
       model: "gpt-4o",
       messages: [systemMessage, ...userInput.messages],
-      max_completion_tokens: 300,
+      max_tokens: 300,
     };
 
     const latestUserMessage = getLatestUserMessage(userInput.messages);

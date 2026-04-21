@@ -5,35 +5,13 @@ const chatWindow = document.getElementById("chatWindow");
 
 // Cloudflare dashboard page to create API tokens (setup helper link).
 const CLOUDFLARE_TOKEN_URL =
-  "https://dash.cloudflare.com/a57c439a8b87127d7dc4c4d92653382e/api-tokens/create";
+  "https://mute-rain-c2eb.ajoebialous.workers.dev/";
 
 /*
   API setting:
   - Set API_URL to your deployed Cloudflare Worker endpoint URL.
 */
-let configuredApiUrl = "/api";
 
-if (typeof window.API_URL === "string" && window.API_URL.trim()) {
-  configuredApiUrl = window.API_URL.trim();
-} else if (typeof API_URL === "string" && API_URL.trim()) {
-  // Also support a plain global "const API_URL = ..." in secrets.js.
-  configuredApiUrl = API_URL.trim();
-}
-
-function validateApiUrl(url) {
-  if (!url) {
-    throw new Error(
-      `Missing API_URL. Add your Cloudflare Worker URL in secrets.js. You can create tokens here if needed: ${CLOUDFLARE_TOKEN_URL}`,
-    );
-  }
-
-  // The dashboard URL is for setup only. The app must call your deployed Worker endpoint.
-  if (url.includes("dash.cloudflare.com")) {
-    throw new Error(
-      "API_URL is set to a Cloudflare dashboard page. Use your deployed Worker URL instead, like: https://your-worker-name.your-subdomain.workers.dev",
-    );
-  }
-}
 
 function parseJsonSafely(text) {
   if (!text || !text.trim()) {
@@ -89,7 +67,7 @@ chatForm.addEventListener("submit", async (e) => {
   const thinkingElement = appendMessage("ai", "Thinking...");
 
   try {
-    validateApiUrl(configuredApiUrl);
+
 
     const memoryMessage = {
       role: "system",
@@ -99,7 +77,7 @@ chatForm.addEventListener("submit", async (e) => {
     // Keep the original system message first, then memory context, then chat history.
     const requestMessages = [messages[0], memoryMessage, ...messages.slice(1)];
 
-    const response = await fetch(configuredApiUrl, {
+    const response = await fetch(CLOUDFLARE_TOKEN_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -107,7 +85,7 @@ chatForm.addEventListener("submit", async (e) => {
       body: JSON.stringify({
         model: "gpt-4o",
         messages: requestMessages,
-        max_completion_tokens: 300,
+        max_tokens: 300,
       }),
     });
 
